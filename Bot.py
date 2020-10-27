@@ -21,6 +21,7 @@ class Bot:
         self.paintCross = paintCross
         self.checkFinish = checkFinish
         self.paintMiss = paintMiss
+        self.createnmyships()
 
     def AiPlayHard(self):
         if self.checkFinish("user") < self.max_ships and self.checkFinish("comp") < self.max_ships:

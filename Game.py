@@ -33,7 +33,7 @@ class Application(Frame):
     fleet_user_array = []
     lengths = []
     # массив точек, в которые стрелял компьютер
-    comp_shoot = []
+    user2_shot = []
     # массив точек, в которые попал компьютер, но ещё не убил
     comp_hit = []
     cur_ship = None
@@ -58,7 +58,7 @@ class Application(Frame):
         self.canv.bind("<Button-1>", self.userPlay)
 
     def updateFleets(self):
-        self.lengths = [1, 1, 1, 1, 2, 2, 2, 3, 3]
+        self.lengths = [1, 1, 1, 1, 2, 2, 2, 3, 3, 4]
 
     def createFieldUser(self, offset_x, color, tag):
         for i in range(self.size):
@@ -102,9 +102,9 @@ class Application(Frame):
         self.add_letters(self.offset_x_user1)
         self.add_letters(self.offset_x_user2)
         # генерация кораблей противника
-        if self.game_mode == "OFF":
+        if self.game_mode == "ON":
             self.createnmyships("nmy")
-        self.cur_ship = Ship.Ship(4, self.size, 0, "my_0_0")
+        self.cur_ship = Ship.Ship(self.lengths.pop(), self.size, 0, "my_0_0")
         self.paintUnreadyShip(self.cur_ship)
 
     def createnmyships(self, prefix="nmy"):
@@ -149,7 +149,7 @@ class Application(Frame):
             if self.cur_ship.ship_correct == 1 and len(intersect_array) == 0:
                 self.fleet_user_array += self.cur_ship.coord_map
                 self.fleet_user.append(self.cur_ship)
-                self.paintReadyShip(self.cur_ship)
+                self.paintReadyShip(self.cur_ship, "blue")
                 self.count_shops = self.count_shops - 1
                 if len(self.lengths) and self.count_shops > 0:
                     self.cur_ship = Ship.Ship(self.lengths.pop(), self.size, 0, "my_0_0")
@@ -160,8 +160,12 @@ class Application(Frame):
 
     def skipingShips(self, e):
         if len(self.lengths):
+            self.paintReadyShip(self.cur_ship, "lightcyan")
+            if len(self.lengths) == 1:
+                self.updateFleets()
             self.cur_ship = Ship.Ship(self.lengths.pop(), self.size, 0, "my_0_0")
             self.paintUnreadyShip(self.cur_ship)
+
 
     def creatingUserFleetDown(self, e):
         if len(self.fleet_user) < self.max_ships:
@@ -205,10 +209,10 @@ class Application(Frame):
             self.canv.itemconfig(point, fill="red")
 
     # метод для отрисовки корабля
-    def paintReadyShip(self, ship):
+    def paintReadyShip(self, ship, color):
         # отрисовка корабля
         for point in ship.coord_map:
-            self.canv.itemconfig(point, fill="blue")
+            self.canv.itemconfig(point, fill=color)
 
     # метод рисования в ячейке креста на белом фоне
     def paintCross(self, xn, yn, tag):
@@ -256,7 +260,7 @@ class Application(Frame):
                 while 1:
                     i = randrange(self.size)
                     j = randrange(self.size)
-                    if not ("my_" + str(i) + "_" + str(j) in self.comp_shoot):
+                    if not ("my_" + str(i) + "_" + str(j) in self.user2_shot):
                         break
             # если есть одна такая точка
             elif len(self.comp_hit) == 1:
@@ -267,7 +271,7 @@ class Application(Frame):
                 for ti in range(i - 1, i + 2):
                     for tj in range(j - 1, j + 2):
                         if ti >= 0 and ti <= (self.size - 1) and tj >= 0 and tj <= (self.size - 1) and (ti == i or tj == j) and not (
-                                ti == i and tj == j) and not ("my_" + str(ti) + "_" + str(tj) in self.comp_shoot):
+                                ti == i and tj == j) and not ("my_" + str(ti) + "_" + str(tj) in self.user2_shot):
                             points_around.append([ti, tj])
                 # cлучайная точка из массива
                 select = randrange(len(points_around))
@@ -284,14 +288,14 @@ class Application(Frame):
                         arr = self.comp_hit[0].split('_')
                         arr[2] = str(int(arr[2]) - 1)
                         arr = arr[0] + '_' + arr[1] + '_' + arr[2]
-                        if not arr in self.comp_shoot:
+                        if not arr in self.user2_shot:
                             points_to_strike.append(arr)
                     # справа
                     if self.comp_hit[-1][5] != str(self.size - 1):
                         arr = self.comp_hit[-1].split('_')
                         arr[2] = str(int(arr[2]) + 1)
                         arr = arr[0] + '_' + arr[1] + '_' + arr[2]
-                        if not arr in self.comp_shoot:
+                        if not arr in self.user2_shot:
                             points_to_strike.append(arr)
                 else:
                     # сверху
@@ -299,14 +303,14 @@ class Application(Frame):
                         arr = self.comp_hit[0].split('_')
                         arr[1] = str(int(arr[1]) - 1)
                         arr = arr[0] + '_' + arr[1] + '_' + arr[2]
-                        if not arr in self.comp_shoot:
+                        if not arr in self.user2_shot:
                             points_to_strike.append(arr)
                     # снизу
                     if self.comp_hit[-1][3] != str(self.size - 1):
                         arr = self.comp_hit[-1].split('_')
                         arr[1] = str(int(arr[1]) + 1)
                         arr = arr[0] + '_' + arr[1] + '_' + arr[2]
-                        if not arr in self.comp_shoot:
+                        if not arr in self.user2_shot:
                             points_to_strike.append(arr)
                 # случайная точка (не больше двух)
                 selected = points_to_strike[randrange(len(points_to_strike))]
@@ -324,7 +328,7 @@ class Application(Frame):
                     # мы попали, поэтому надо нарисовать крест
                     self.paintCross(xn, yn, "my_" + str(i) + "_" + str(j))
                     # добавить точку в список выстрелов компьютера
-                    self.comp_shoot.append("my_" + str(i) + "_" + str(j))
+                    self.user2_shot.append("my_" + str(i) + "_" + str(j))
                     # если метод вернул двойку, значит, корабль убит
                     if obj.shoot("my_" + str(i) + "_" + str(j)) == 2:
                         # изменить статус корабля
@@ -334,7 +338,7 @@ class Application(Frame):
                             # нарисовать промахи
                             self.paintMiss(point)
                             # добавить точки вокруг корабля в список выстрелов компьютера
-                            self.comp_shoot.append(point)
+                            self.user2_shot.append(point)
                         showinfo("", "Убил!")
                         self.comp_hit.clear()
                     else:
@@ -344,7 +348,7 @@ class Application(Frame):
             # иначе дать пользователю стрелять
             if hit_status == 0:
                 # добавить точку в список выстрелов
-                self.comp_shoot.append("my_" + str(i) + "_" + str(j))
+                self.user2_shot.append("my_" + str(i) + "_" + str(j))
                 self.paintMiss("my_" + str(i) + "_" + str(j))
                 showinfo("", "Ха, лох, не попал!")
             else:
@@ -362,7 +366,7 @@ class Application(Frame):
         while 1:
             i = randrange(self.size)
             j = randrange(self.size)
-            if not ("my_" + str(i) + "_" + str(j) in self.comp_shoot):
+            if not ("my_" + str(i) + "_" + str(j) in self.user2_shot):
                 break
         xn = j * self.gauge + (j + 1) * self.indent + self.offset_x_user1
         yn = i * self.gauge + (i + 1) * self.indent + self.offset_y
@@ -376,7 +380,7 @@ class Application(Frame):
                 # мы попали, поэтому надо нарисовать крест
                 self.paintCross(xn, yn, "my_" + str(i) + "_" + str(j))
                 # добавить точку в список выстрелов компьютера
-                self.comp_shoot.append("my_" + str(i) + "_" + str(j))
+                self.user2_shot.append("my_" + str(i) + "_" + str(j))
                 # если метод вернул двойку, значит, корабль убит
                 if obj.shoot("my_" + str(i) + "_" + str(j)) == 2:
                     # изменить статус корабля
@@ -386,7 +390,7 @@ class Application(Frame):
                         # нарисовать промахи
                         self.paintMiss(point)
                         # добавить точки вокруг корабля в список выстрелов компьютера
-                        self.comp_shoot.append(point)
+                        self.user2_shot.append(point)
                     showinfo("", "Убил!")
                     self.comp_hit.clear()
                 else:
@@ -396,7 +400,7 @@ class Application(Frame):
         # иначе дать пользователю стрелять
         if hit_status == 0:
             # добавить точку в список выстрелов
-            self.comp_shoot.append("my_" + str(i) + "_" + str(j))
+            self.user2_shot.append("my_" + str(i) + "_" + str(j))
             self.paintMiss("my_" + str(i) + "_" + str(j))
             showinfo("", "Ха, лох, не попал!")
         else:
@@ -460,21 +464,22 @@ class Application(Frame):
     def quit_game(self):
         root.destroy()
 
-    def __init__(self, size, bot_lvl,game_mode, max_ships, master=None):
+    def __init__(self, size, bot_lvl,game_mode, max_ships, rndShips, master=None):
         self.size = size
         self.bot_lvl = bot_lvl
         self.game_mode = game_mode
         self.max_ships = max_ships
         self.count_shops = max_ships
+        self.rndFLeet = rndShips
         # размер одной из сторон квадратной ячейки
         self.gauge = 32 * 10/self.size
-        self.player1 = User(self.offset_x_user1, self.offset_y, "my")
+        self.player1 = User.User(self.offset_x_user1, self.offset_y, "my", self.max_ships, self.size)
         self.actual_player = self.player1
-        if self.game_mode == "ON":
-            self.player2 = User(self.offset_x_user2, self.offset_y, "nmy")
+        if self.game_mode == "OFF":
+            self.player2 = User.User(self.offset_x_user2, self.offset_y, "nmy", self.max_ships, self.size)
         else:
-            self.player2 = Bot(self.max_ships, self.size, self.comp_shoot,self.comp_hit, self.gauge, self.offset_x_user2,self.indent,
-                               self.offset_y_user, self.fleet_user, self.paintCross, self.checkFinish, self.paintMiss, self.bot_lvl)
+            self.player2 = Bot.Bot(self.max_ships, self.size, self.user2_shot, self.comp_hit, self.gauge, self.offset_x_user2, self.indent,
+                               self.offset_y, self.fleet_user, self.paintCross, self.checkFinish, self.paintMiss, self.bot_lvl)
         Frame.__init__(self, master)
         self.pack()
         # инициализация меню
@@ -495,6 +500,7 @@ if __name__ == '__main__':
     AI_Lvl = 2
     game_mode = "OFF"
     max_ships = 10
+    rnd_Ships = "OFF"
     try:
         size = int(args.size_place)
         max_ships = args.count_ships
@@ -506,6 +512,8 @@ if __name__ == '__main__':
             game_mode = "ON"
         if args.LVL_AI == 1:
             AI_Lvl = 1
+        if args.random_ships == "ON":
+            rnd_Ships = "ON"
     except PermissionError:
         sys.exit(11)
 # инициализация окна
@@ -514,7 +522,7 @@ if __name__ == '__main__':
     root.geometry("800x400+100+100")
 
 # инициализация приложения
-    app = Application(size,AI_Lvl,game_mode, max_ships, root)
+    app = Application(size,AI_Lvl,game_mode, max_ships,rnd_Ships,  root)
     app.mainloop()
 
     def checkFinish(self, type):

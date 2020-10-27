@@ -15,5 +15,9 @@ def parse_arguments():
                         help='LVL AI 1 or 2, default = 2')
     parser.add_argument('-cs', type=int, dest='count_ships', default=10,
                         help='Count ships 1-10. Max 10')
+    parser.add_argument('-rndShips', type=str, dest='random_ships',
+                        default="OFF",
+                        help='Generate randoms ships')
+
 
     return parser.parse_args()
