@@ -1,22 +1,28 @@
-from random import randrange
 import Ship
-
+from random import randrange
 
 class User:
-    fleet_user = []
-    fleet_user_array = []
-    fleet = [1,1,1,1,2,2,2,3,3]
-    count_ships = 0
-    user_shoot = []
-
-    def __init__(self, offset_x_user, offset_y_user, prefix, max_ships, map_size):
+    def __init__(self, offset_x_user, offset_y_user, prefix, max_ships, map_size, type, paintReadyShip, start_x, start_y):
         self.offset_x_user = offset_x_user
         self.offset_y_user = offset_y_user
         self.prefix = prefix
-        self.max_ships = max_ships
+        self.max_ships = self.count_ships = max_ships
         self.size = map_size
+        self.type = type
+        self.paintReadyShip = paintReadyShip
+        self.start_x = start_x
+        self.start_y = start_y
+        self.fleet_user = []
+        # использованные клетки
+        self.fleet_user_array = []
+        self.lengths = [1, 1, 1, 1, 2, 2, 2, 3, 3]
+        # стрелял в который
+        # промахи
+        self.user_missing = []
+        # кресты
+        self.user_hit = []
 
-    def generateRandomShips(self, prefix="my"):
+    def generateRandomShips(self):
         # функция генерации кораблей на поле
         # количество сгенерированных кораблей
         global fleet_ships
@@ -35,18 +41,19 @@ class User:
                     # генерация точки со случайными координатами, пока туда не установится корабль
                     while True:
                         # генерация точки со случайными координатами
-                        ship_point = prefix + "_" + str(randrange(self.size)) + "_" + str(randrange(self.size))
+                        ship_point = self.prefix + "_" + str(randrange(self.size)) + "_" + str(randrange(self.size))
                         # случайное расположение корабля (либо горизонтальное, либо вертикальное)
                         orientation = randrange(2)
                         # создать экземпляр класса Ship
                         new_ship = Ship.Ship(length, self.size, orientation, ship_point)
                         # если корабль может быть поставлен корректно и его точки не пересекаются с уже занятыми точками поля
                         # пересечение множества занятых точек поля и точек корабля:
-                        intersect_array = list(set(fleet_array) & set(new_ship.around_map + new_ship.coord_map))
+                        intersect_array = list(set(self.fleet_user_array) & set(new_ship.around_map + new_ship.coord_map))
                         if new_ship.ship_correct == 1 and len(intersect_array) == 0:
                             # добавить в массив со всеми занятыми точками точки вокруг корабля и точки самого корабля
-                            fleet_array += new_ship.coord_map
+                            self.fleet_user_array += new_ship.coord_map
                             fleet_ships.append(new_ship)
+                            self.paintReadyShip(new_ship, "blue")
                             count_ships += 1
                             break
         self.fleet_user = fleet_ships

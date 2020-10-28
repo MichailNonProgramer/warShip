@@ -1,16 +1,17 @@
-from arguments_parcer import parse_arguments
-from random import randrange
 from time import sleep
-from tkinter import *
-from tkinter.messagebox import *
+
 import Ship
-import sys
+import vk_api
 import User
 import Bot
+import pickle
+from arguments_parcer import parse_arguments
+from tkinter import *
+from tkinter.messagebox import *
 
 class Application(Frame):
 
-   # Cделать пвп
+   # Cделать пвп, сохраниние загрузка
     # ширина рабочего поля
     width = 800
     # высота рабочего поля
@@ -25,19 +26,8 @@ class Application(Frame):
     offset_x_user1 = 30
     # смещение по x поля компьютера
     offset_x_user2 = 430
-    # компьютерный флот
-    fleet_user2 = []
-    # наш флот
-    fleet_user = []
-    # использованные клетки
-    fleet_user_array = []
-    lengths = []
-    # массив точек, в которые стрелял компьютер
-    user2_shot = []
-    # массив точек, в которые попал компьютер, но ещё не убил
-    comp_hit = []
     cur_ship = None
-    first_player_turn = TRUE
+    change = TRUE
     # добавление холста на окно
     def createCanvas(self):
         self.canv = Canvas(self)
@@ -56,9 +46,6 @@ class Application(Frame):
         self.canv.bind("<Shift-Up>", self.skipingShips)
         # клик по холсту вызывает функцию play
         self.canv.bind("<Button-1>", self.userPlay)
-
-    def updateFleets(self):
-        self.lengths = [1, 1, 1, 1, 2, 2, 2, 3, 3, 4]
 
     def createFieldUser(self, offset_x, color, tag):
         for i in range(self.size):
@@ -90,7 +77,6 @@ class Application(Frame):
         self.fleet_user = []
         self.fleet_user_array = []
         self.canv.delete('all')
-        self.updateFleets()
         # добавление игровых полей пользователя и компьютера
         # создание поля для пользователя
         # перебор строк
@@ -102,97 +88,125 @@ class Application(Frame):
         self.add_letters(self.offset_x_user1)
         self.add_letters(self.offset_x_user2)
         # генерация кораблей противника
-        if self.game_mode == "ON":
-            self.createnmyships("nmy")
-        self.cur_ship = Ship.Ship(self.lengths.pop(), self.size, 0, "my_0_0")
-        self.paintUnreadyShip(self.cur_ship)
+        if self.rnd_fLeet == "OFF":
+            self.cur_ship = Ship.Ship(4, self.size, 0, "my_0_0")
+            self.paintUnreadyShip(self.cur_ship)
+        self.player1 = User.User(self.offset_x_user1, self.offset_y, "my", self.max_ships, self.size, "user1",
+                                 self.paintReadyShip, "0", "0")
+        self.actual_player = self.player1
+        if self.rnd_fLeet == "ON":
+            self.player1.generateRandomShips()
+        if self.game_mode == "OFF":
+            self.player2 = User.User(self.offset_x_user2, self.offset_y, "nmy", self.max_ships, self.size, "user2",
+                                     self.paintReadyShip, str(self.offset_x_user2), "0")
+            if self.rnd_fLeet == "ON":
+                self.player2.generateRandomShips()
+        else:
+            self.player2 = Bot.Bot(self.max_ships, self.size, self.gauge, self.offset_x_user2, self.indent,
+                                   self.offset_y, self.paintCross, self.checkFinish, self.paintMiss, self.bot_lvl,
+                                   self.size, "nmy", "bot", self.paintReadyShip, self.post_in_VK, self.vk_post, 0, 0)
+        self.wating_player = self.player2
+        print(self.actual_player.prefix, self.wating_player.prefix)
 
-    def createnmyships(self, prefix="nmy"):
-        # функция генерации кораблей на поле
-        # количество сгенерированных кораблей
-        global fleet_ships
-        count_ships = 0
-        while count_ships < self.max_ships:
-            # массив занятых кораблями точек
-            fleet_array = []
-            # обнулить количество кораблей
-            count_ships = 0
-            # массив с флотом
-            fleet_ships = []
-            # генерация кораблей (length - палубность корабля)
-            for length in reversed(range(1, 5)):
-                # генерация необходимого количества кораблей необходимой длины
-                for i in range(5 - length):
-                    # генерация точки со случайными координатами, пока туда не установится корабль
-                    while 1:
-                        # генерация точки со случайными координатами
-                        ship_point = prefix + "_" + str(randrange(self.size)) + "_" + str(randrange(self.size))
-                        # случайное расположение корабля (либо горизонтальное, либо вертикальное)
-                        orientation = randrange(2)
-                        # создать экземпляр класса Ship
-                        new_ship = Ship.Ship(length, self.size, orientation, ship_point)
-                        # если корабль может быть поставлен корректно и его точки не пересекаются с уже занятыми точками поля
-                        # пересечение множества занятых точек поля и точек корабля:
-                        intersect_array = list(set(fleet_array) & set(new_ship.around_map + new_ship.coord_map))
-                        if new_ship.ship_correct == 1 and len(intersect_array) == 0:
-                            # добавить в массив со всеми занятыми точками точки вокруг корабля и точки самого корабля
-                            fleet_array += new_ship.coord_map
-                            fleet_ships.append(new_ship)
-                            count_ships += 1
-                            break
-        self.fleet_user2 = fleet_ships
     # юзер жмёт Enter
     def creatingUserFleetEnter(self, e):
-        if len(self.fleet_user) < self.max_ships:
+        if len(self.actual_player.fleet_user) < self.max_ships:
             # если корабль монжо поместить на это место, то помещаем туда и переходим к следующему
-            intersect_array = list(set(self.fleet_user_array) & set(self.cur_ship.around_map + self.cur_ship.coord_map))
+            intersect_array = list(set(self.actual_player.fleet_user_array) & set(self.cur_ship.around_map + self.cur_ship.coord_map))
             if self.cur_ship.ship_correct == 1 and len(intersect_array) == 0:
-                self.fleet_user_array += self.cur_ship.coord_map
-                self.fleet_user.append(self.cur_ship)
+                self.actual_player.fleet_user_array += self.cur_ship.coord_map
+                self.actual_player.fleet_user.append(self.cur_ship)
                 self.paintReadyShip(self.cur_ship, "blue")
-                self.count_shops = self.count_shops - 1
-                if len(self.lengths) and self.count_shops > 0:
-                    self.cur_ship = Ship.Ship(self.lengths.pop(), self.size, 0, "my_0_0")
+                self.actual_player.count_ships = self.actual_player.count_ships - 1
+                if len(self.actual_player.lengths) and self.actual_player.count_ships > 0:
+                    self.cur_ship = Ship.Ship(self.actual_player.lengths.pop(), self.size, 0, self.actual_player.prefix + "_" + str(0)
+                                              + "_" + str(0))
                     self.paintUnreadyShip(self.cur_ship)
-               # if self.count_shops == 0 and self.game_mode == "ON" and self.player2.count_ships < self.max_ships:
-                  #  self.actual_player = self.player2
+                elif len(self.actual_player.fleet_user) == len(self.wating_player.fleet_user) == self.max_ships:
+                    self.changePlayer(self.player1, self.player2)
+                    showinfo("", "Ходит игрок 1")
+                    sleep(1)
+                if self.actual_player.count_ships == 0 and self.game_mode == "OFF" and self.change:
+                    self.change = FALSE
+                    self.changePlayer(self.player2, self.player1)
+                    self.cur_ship = Ship.Ship(4, self.size, 0, "nmy_0_0")
+                    self.paintUnreadyShip(self.cur_ship)
+                    showinfo("", "2 игрок ставит кораблики")
+                    sleep(1)
 
+    def updateMapActual(self):
+        for i in range(self.size):
+            for j in range(self.size):
+                xn = j * self.gauge + (j + 1) * self.indent + self.offset_x_user1
+                xk = xn + self.gauge
+                yn = i * self.gauge + (i + 1) * self.indent + self.offset_y
+                yk = yn + self.gauge
+                self.canv.create_rectangle(xn, yn, xk, yk,
+                                           tag=str(self.actual_player.prefix) + "_" + str(i) + "_" + str(j), fill="white")
+                point = str(self.actual_player.prefix) + "_" + str(i) + "_" + str(j)
+                print(point)
+                print(self.wating_player.user_missing)
+                print(self.wating_player.user_hit)
+                if point in self.wating_player.user_hit:
+                    self.paintCross(xn, yn, self.actual_player.prefix)
+                if point in self.wating_player.user_missing:
+                    self.paintMiss(point)
+                for ship in self.actual_player.fleet_user:
+                    for coord in ship.coord_map:
+                        if point == coord:
+                            self.paintReadyShip(ship, "blue")
+
+
+    def updateMapWating(self):
+        for i in range(self.size):
+            for j in range(self.size):
+                xn = j * self.gauge + (j + 1) * self.indent + self.offset_x_user2
+                xk = xn + self.gauge
+                yn = i * self.gauge + (i + 1) * self.indent + self.offset_y
+                yk = yn + self.gauge
+                self.canv.create_rectangle(xn, yn, xk, yk,
+                                           tag=str(self.wating_player.prefix) + "_" + str(i) + "_" + str(j), fill="gray")
+                point = str(self.wating_player.prefix) + "_" + str(i) + "_" + str(j)
+                if point in self.actual_player.user_hit:
+                    self.paintCross(xn, yn, self.wating_player.prefix)
+                if point in self.actual_player.user_missing:
+                    self.paintMiss(point)
 
     def skipingShips(self, e):
-        if len(self.lengths):
+        if len(self.actual_player.lengths) <= 1:
+            self.actual_player.lengths = [1, 1, 1, 1, 2, 2, 2, 3, 3, 4]
+        if len(self.actual_player.lengths):
             self.paintReadyShip(self.cur_ship, "lightcyan")
-            if len(self.lengths) == 1:
-                self.updateFleets()
-            self.cur_ship = Ship.Ship(self.lengths.pop(), self.size, 0, "my_0_0")
+            self.cur_ship = Ship.Ship(self.actual_player.lengths.pop(), self.actual_player.size, 0, "my_0_0")
             self.paintUnreadyShip(self.cur_ship)
-
+            print(self.actual_player.lengths)
 
     def creatingUserFleetDown(self, e):
-        if len(self.fleet_user) < self.max_ships:
+        if len(self.actual_player.fleet_user) < self.actual_player.max_ships:
             self.fillRedInLightCyan(self.cur_ship)
             self.cur_ship = self.cur_ship.move(1, 0)
             self.paintUnreadyShip(self.cur_ship)
 
     def creatingUserFleetUp(self, e):
-        if len(self.fleet_user) < self.max_ships:
+        if len(self.actual_player.fleet_user) < self.actual_player.max_ships:
             self.fillRedInLightCyan(self.cur_ship)
             self.cur_ship = self.cur_ship.move(-1, 0)
             self.paintUnreadyShip(self.cur_ship)
 
     def creatingUserFleetLeft(self, e):
-        if len(self.fleet_user) < self.max_ships:
+        if len(self.actual_player.fleet_user) < self.actual_player.max_ships:
             self.fillRedInLightCyan(self.cur_ship)
             self.cur_ship = self.cur_ship.move(0, -1)
             self.paintUnreadyShip(self.cur_ship)
 
     def creatingUserFleetRight(self, e):
-        if len(self.fleet_user) < self.max_ships:
+        if len(self.actual_player.fleet_user) < self.actual_player.max_ships:
             self.fillRedInLightCyan(self.cur_ship)
             self.cur_ship = self.cur_ship.move(0, 1)
             self.paintUnreadyShip(self.cur_ship)
 
     def creatingUserFleetSpace(self, e):
-        if len(self.fleet_user) < self.max_ships and e.char == ' ':
+        if len(self.actual_player.fleet_user) < self.actual_player.max_ships and e.char == ' ':
             self.fillRedInLightCyan(self.cur_ship)
             self.cur_ship = self.cur_ship.rotate()
             self.paintUnreadyShip(self.cur_ship)
@@ -200,7 +214,7 @@ class Application(Frame):
     def fillRedInLightCyan(self, ship):
         for point in ship.coord_map:
             self.canv.itemconfig(point, fill="lightcyan")
-        for ship in self.fleet_user:
+        for ship in self.actual_player.fleet_user:
             for point in ship.coord_map:
                 self.canv.itemconfig(point, fill="blue")
 
@@ -228,12 +242,10 @@ class Application(Frame):
         line = int(point.split("_")[1])
         collumn = int(point.split("_")[2])
         if point.split("_")[0] == "nmy":
-            xn = collumn * self.gauge + (collumn + 1) * self.indent + self.offset_x_user2 + self.gauge / 20 * self.size - round(self.size / 4)
+            xn = collumn * self.gauge + (collumn + 1) * self.indent + self.wating_player.offset_x_user + self.gauge / 20 * self.size - round(self.size / 4)
         else:
-            xn = collumn * self.gauge + (collumn + 1) * self.indent + self.offset_x_user1 + self.gauge / 20 * self.size - round(self.size / 4)
+            xn = collumn * self.gauge + (collumn + 1) * self.indent + self.actual_player.offset_x_user + self.gauge / 20 * self.size - round(self.size / 4)
         yn = line * self.gauge + (line + 1) * self.indent + self.offset_y + self.gauge /20 * self.size - round(self.size / 4)
-        # добавить прямоугольник
-        # покрасить в белый
         self.canv.itemconfig(point, fill="red")
         self.canv.create_oval(xn, yn, xn, yn, fill="gray")
 
@@ -241,245 +253,165 @@ class Application(Frame):
     def checkFinish(self, type):
         '''type - указание, от чьего имени идёт обращение'''
         status = 0
-        if type == "user":
-            for ship in self.fleet_user2:
+        if type == "user1":
+            for ship in self.player2.fleet_user:
                 status += ship.death
         else:
-            for ship in self.fleet_user:
+            for ship in self.player1.fleet_user:
                 status += ship.death
         return status
 
-    # метод игры компьютера
-
-    def AiPlayHard(self):
-        if self.checkFinish("user") < self.max_ships and self.checkFinish("comp") < self.max_ships:
-            sleep(1)
-            # если нет точек, в которые попал, но не убил то генерировать случайные точки
-            if len(self.comp_hit) == 0:
-                # генерировать случайные точки, пока не будет найдена пара, которой не было в списке выстрелов
-                while 1:
-                    i = randrange(self.size)
-                    j = randrange(self.size)
-                    if not ("my_" + str(i) + "_" + str(j) in self.user2_shot):
-                        break
-            # если есть одна такая точка
-            elif len(self.comp_hit) == 1:
-                # массив точек вокруг
-                points_around = []
-                i = int(self.comp_hit[0].split("_")[1])
-                j = int(self.comp_hit[0].split("_")[2])
-                for ti in range(i - 1, i + 2):
-                    for tj in range(j - 1, j + 2):
-                        if ti >= 0 and ti <= (self.size - 1) and tj >= 0 and tj <= (self.size - 1) and (ti == i or tj == j) and not (
-                                ti == i and tj == j) and not ("my_" + str(ti) + "_" + str(tj) in self.user2_shot):
-                            points_around.append([ti, tj])
-                # cлучайная точка из массива
-                select = randrange(len(points_around))
-                i = points_around[select][0]
-                j = points_around[select][1]
-            else:
-                # если есть больше одной такой точки
-                points_to_strike = []
-                self.comp_hit.sort()
-                # если у таких точек сопадает первая координата
-                if self.comp_hit[0][3] == self.comp_hit[1][3]:
-                    # проверяем точку слева от найденных
-                    if self.comp_hit[0][5] != '0':
-                        arr = self.comp_hit[0].split('_')
-                        arr[2] = str(int(arr[2]) - 1)
-                        arr = arr[0] + '_' + arr[1] + '_' + arr[2]
-                        if not arr in self.user2_shot:
-                            points_to_strike.append(arr)
-                    # справа
-                    if self.comp_hit[-1][5] != str(self.size - 1):
-                        arr = self.comp_hit[-1].split('_')
-                        arr[2] = str(int(arr[2]) + 1)
-                        arr = arr[0] + '_' + arr[1] + '_' + arr[2]
-                        if not arr in self.user2_shot:
-                            points_to_strike.append(arr)
-                else:
-                    # сверху
-                    if self.comp_hit[0][3] != '0':
-                        arr = self.comp_hit[0].split('_')
-                        arr[1] = str(int(arr[1]) - 1)
-                        arr = arr[0] + '_' + arr[1] + '_' + arr[2]
-                        if not arr in self.user2_shot:
-                            points_to_strike.append(arr)
-                    # снизу
-                    if self.comp_hit[-1][3] != str(self.size - 1):
-                        arr = self.comp_hit[-1].split('_')
-                        arr[1] = str(int(arr[1]) + 1)
-                        arr = arr[0] + '_' + arr[1] + '_' + arr[2]
-                        if not arr in self.user2_shot:
-                            points_to_strike.append(arr)
-                # случайная точка (не больше двух)
-                selected = points_to_strike[randrange(len(points_to_strike))]
-                i = int(selected.split('_')[1])
-                j = int(selected.split('_')[2])
-            xn = j * self.gauge + (j + 1) * self.indent + self.offset_x_user1
-            yn = i * self.gauge + (i + 1) * self.indent + self.offset_y
-            hit_status = 0
-            for obj in self.fleet_user:
-                # если координаты точки совпадают с координатой корабля, то вызвать метод выстрела
-                if "my_" + str(i) + "_" + str(j) in obj.coord_map:
-                    hit_status = 2
-                    # изменить статус попадания
-                    self.comp_hit.append("my_" + str(i) + "_" + str(j))
-                    # мы попали, поэтому надо нарисовать крест
-                    self.paintCross(xn, yn, "my_" + str(i) + "_" + str(j))
-                    # добавить точку в список выстрелов компьютера
-                    self.user2_shot.append("my_" + str(i) + "_" + str(j))
-                    # если метод вернул двойку, значит, корабль убит
-                    if obj.shoot("my_" + str(i) + "_" + str(j)) == 2:
-                        # изменить статус корабля
-                        obj.death = 1
-                        # все точки вокруг корабля сделать точками, в которые мы уже стреляли
-                        for point in obj.around_map:
-                            # нарисовать промахи
-                            self.paintMiss(point)
-                            # добавить точки вокруг корабля в список выстрелов компьютера
-                            self.user2_shot.append(point)
-                        showinfo("", "Убил!")
-                        self.comp_hit.clear()
-                    else:
-                        showinfo("", "Попал!")
-                    break
-            # если статус попадания остался равным нулю - значит, мы промахнулись, передать управление компьютеру
-            # иначе дать пользователю стрелять
-            if hit_status == 0:
-                # добавить точку в список выстрелов
-                self.user2_shot.append("my_" + str(i) + "_" + str(j))
-                self.paintMiss("my_" + str(i) + "_" + str(j))
-                showinfo("", "Ха, лох, не попал!")
-            else:
-                # проверить выигрыш, если его нет - передать управление компьютеру
-                if self.checkFinish("comp") < self.max_ships:
-
-                    if self.bot_lvl == 1:
-                        self.AiPlayEasy()
-                    else:
-                        self.AiPlayHard()
-                else:
-                    showinfo("", "Как ты слил компу?!")
-
-    def AiPlayEasy(self):
-        while 1:
-            i = randrange(self.size)
-            j = randrange(self.size)
-            if not ("my_" + str(i) + "_" + str(j) in self.user2_shot):
-                break
-        xn = j * self.gauge + (j + 1) * self.indent + self.offset_x_user1
-        yn = i * self.gauge + (i + 1) * self.indent + self.offset_y
-        hit_status = 0
-        for obj in self.fleet_user:
-            # если координаты точки совпадают с координатой корабля, то вызвать метод выстрела
-            if "my_" + str(i) + "_" + str(j) in obj.coord_map:
-                hit_status = 2
-                # изменить статус попадания
-                self.comp_hit.append("my_" + str(i) + "_" + str(j))
-                # мы попали, поэтому надо нарисовать крест
-                self.paintCross(xn, yn, "my_" + str(i) + "_" + str(j))
-                # добавить точку в список выстрелов компьютера
-                self.user2_shot.append("my_" + str(i) + "_" + str(j))
-                # если метод вернул двойку, значит, корабль убит
-                if obj.shoot("my_" + str(i) + "_" + str(j)) == 2:
-                    # изменить статус корабля
-                    obj.death = 1
-                    # все точки вокруг корабля сделать точками, в которые мы уже стреляли
-                    for point in obj.around_map:
-                        # нарисовать промахи
-                        self.paintMiss(point)
-                        # добавить точки вокруг корабля в список выстрелов компьютера
-                        self.user2_shot.append(point)
-                    showinfo("", "Убил!")
-                    self.comp_hit.clear()
-                else:
-                    showinfo("", "Попал!")
-                break
-        # если статус попадания остался равным нулю - значит, мы промахнулись, передать управление компьютеру
-        # иначе дать пользователю стрелять
-        if hit_status == 0:
-            # добавить точку в список выстрелов
-            self.user2_shot.append("my_" + str(i) + "_" + str(j))
-            self.paintMiss("my_" + str(i) + "_" + str(j))
-            showinfo("", "Ха, лох, не попал!")
-        else:
-            # проверить выигрыш, если его нет - передать управление компьютеру
-            if self.checkFinish("comp") < self.max_ships:
-                if self.bot_lvl == 1:
-                    self.AiPlayEasy()
-                else:
-                    self.AiPlayHard()
-            else:
-                showinfo("", "Как ты слил компу?!")
-
     # метод для игры пользователя
     def userPlay(self, e):
-        if len(self.fleet_user) == self.max_ships and self.checkFinish("user") < self.max_ships and self.checkFinish("comp") < self.max_ships:
+        if len(self.actual_player.fleet_user) == self.actual_player.max_ships \
+                and self.checkFinish(str(self.actual_player.type)) < self.actual_player.max_ships \
+                and self.checkFinish(str(self.wating_player.type)) < self.actual_player.max_ships\
+                and len(self.wating_player.fleet_user) == self.wating_player.max_ships:
             for i in range(self.size):
                 for j in range(self.size):
-                    xn = j * self.gauge + (j + 1) * self.indent + self.offset_x_user2
+                    xn = j * self.gauge + (j + 1) * self.indent + self.player2.offset_x_user
                     yn = i * self.gauge + (i + 1) * self.indent + self.offset_y
                     xk = xn + self.gauge
                     yk = yn + self.gauge
                     if e.x >= xn and e.x <= xk and e.y >= yn and e.y <= yk:
                         # проверить попали ли мы в корабль
                         hit_status = 0
-                        for obj in self.fleet_user2:
+                        for obj in self.wating_player.fleet_user:
                             # если координаты точки совпадают с координатой корабля, то вызвать метод выстрела
-                            if "nmy_" + str(i) + "_" + str(j) in obj.coord_map:
+                            if str(self.wating_player.prefix) + "_" + str(i) + "_" + str(j) in obj.coord_map:
                                 # изменить статус попадания
                                 hit_status = 1
                                 # мы попали, поэтому надо нарисовать крест
-                                self.paintCross(xn, yn, "nmy_" + str(i) + "_" + str(j))
+                                self.paintCross(xn, yn, str(self.wating_player.prefix) + "_" + str(i) + "_" + str(j))
+                                self.actual_player.user_hit.append(str(self.wating_player.prefix) + "_" + str(i) + "_" + str(j))
                                 # если метод вернул двойку, значит, корабль убит
-                                if obj.shoot("nmy_" + str(i) + "_" + str(j)) == 2:
+                                if obj.shoot(str(self.wating_player.prefix) + "_" + str(i) + "_" + str(j)) == 2:
                                     # изменить статус корабля
                                     obj.death = 1
                                     # все точки вокруг корабля сделать точками, в которые мы уже стреляли
                                     for point in obj.around_map:
                                         # нарисовать промахи
                                         self.paintMiss(point)
-                                    showinfo("", "Вы потопили корабль!")
-                                else:
-                                    showinfo("", "Вы попали!")
+                                        self.actual_player.user_missing.append(point)
                                 break
                         # если статус попадания остался равным нулю - значит, мы промахнулись, передать управление компьютеру
                         # иначе дать пользователю стрелять
-                        if hit_status == 0:
-                            self.paintMiss("nmy_" + str(i) + "_" + str(j))
-                            showinfo("", "Вы промахнулись!")
-                            # проверить выигрыш, если его нет - передать управление компьютеру
-                            if self.checkFinish("user") < self.max_ships:
-                                if self.bot_lvl == 1:
-                                    self.AiPlayEasy()
+                        if hit_status == 0 and not ((str(self.wating_player.prefix) + "_" + str(i) + "_" + str(j)) in self.actual_player.user_missing):
+                            point = str(self.wating_player.prefix) + "_" + str(i) + "_" + str(j)
+                            self.paintMiss(point)
+                            self.actual_player.user_missing.append(point)
+                            # проверить выигрыш, если его нет - передать управление компьютеру // другому игроку
+                            if self.checkFinish(str(self.actual_player.type)) < self.max_ships:
+                                if self.game_mode == "ON":
+                                    if self.bot_lvl == 1:
+                                        self.player2.AiPlayEasy(self.actual_player)
+                                    else:
+                                        self.player2.AiPlayHard(self.actual_player)
                                 else:
-                                    self.AiPlayHard()
+                                    if self.actual_player is self.player1:
+                                        self.changePlayer(self.player2, self.player1)
+                                        showinfo("", "Ходит игрок 2")
+                                        sleep(1)
+                                    else:
+                                        self.changePlayer(self.player1, self.player2)
+                                        showinfo("", "Ходит игрок 1")
+                                        sleep(1)
                             else:
-                                showinfo("Морской бой", "Победил игрок!")
-                        elif self.checkFinish("user") == self.max_ships:
-                            showinfo("Морской бой", "Победил игрок!")
+                                showinfo("Морской бой", "Победил игрок {}!".format(str(self.actual_player.type)))
+                                if self.vk_post == "ON":
+                                    self.post_in_VK(TRUE)
+                        elif self.checkFinish(self.actual_player.type) == self.max_ships:
+                            showinfo("Морской бой", "Победил игрок {}!".format(str(self.actual_player.type)))
+                            if self.vk_post == "ON":
+                                self.post_in_VK(TRUE)
                         break
+
+    def post_in_VK(self, win):
+        mes = "Я проиграл"
+        if win:
+            mes = "Я победил"
+        try:
+            vk_session = vk_api.VkApi(self.vk_log, self.vk_passw)
+            vk_session.auth()
+            vk = vk_session.get_api()
+            print(vk.wall.post(message=mes + "в морском бое от @mcgernogorov"))
+        except(vk_api.VkRequestsPoolException):
+            showinfo("", "Введите правильный логин/пароль")
+
+    def changePlayer(self, p1, p2):
+        self.actual_player = p1
+        self.wating_player = p2
+        self.updateMapActual()
+        self.updateMapWating()
 
     def quit_game(self):
         root.destroy()
 
-    def __init__(self, size, bot_lvl,game_mode, max_ships, rndShips, master=None):
+    def save(self):
+        with open("save_player1.pkl", "wb") as file:
+            pickle.dump({"offset_x_user" : self.player1.offset_x_user, "offset_y_user" : self.player1.offset_y_user,
+                         "user_missing" : self.player1.user_missing, "fleet_user" : self.player1.fleet_user,
+                         "fleet_user_array" : self.player1.fleet_user_array, "prefix" : self.player1.prefix,
+                         "lengths" : self.player1.lengths, "count_ships" : self.player1.count_ships, "max_ships" : self.player1.max_ships,
+                         "size" : self.player1.size, "user_hit" : self.player1.user_hit }, file)
+        with open("save_player2.pkl", "wb") as file:
+            pickle.dump({"offset_x_user" : self.player2.offset_x_user, "offset_y_user" : self.player2.offset_y_user,
+                         "user_missing" : self.player2.user_missing, "fleet_user" : self.player2.fleet_user,
+                         "fleet_user_array" : self.player2.fleet_user_array, "prefix" : self.player2.prefix,
+                         "lengths" : self.player2.lengths, "count_ships" : self.player2.count_ships, "max_ships" : self.player2.max_ships,
+                         "size" : self.player2.size, "user_hit" : self.player2.user_hit}, file)
+
+    def load(self):
+        with open("save_player1.pkl", "rb") as file:
+            player1 = pickle.load(file)
+        with open("save_player2.pkl", "rb") as file:
+            player2 = pickle.load(file)
+        self.updatePlayers(player1, player2)
+        self.updateMapActual()
+        self.updateMapWating()
+
+    def updatePlayers(self, p1, p2):
+        self.actual_player.user_missing = p1["user_missing"]
+        self.actual_player.fleet_user = p1["fleet_user"]
+        self.actual_player.fleet_user_array = p1["fleet_user_array"]
+        self.actual_player.lengths = p1["lengths"]
+        self.actual_player.count_ships = p1["count_ships"]
+        self.actual_player.size = p1["size"]
+        self.actual_player.max_ships = p1["max_ships"]
+        self.actual_player.prefix = p1["prefix"]
+        self.actual_player.offset_x_user = p1["offset_x_user"]
+        self.actual_player.offset_y_user = p1["offset_y_user"]
+        self.actual_player.user_hit = p1["user_hit"]
+        self.actual_player.max_ships = p1["max_ships"]
+        self.actual_player.size = p1["size"]
+        self.wating_player.user_missing = p2["user_missing"]
+        self.wating_player.fleet_user = p2["fleet_user"]
+        self.wating_player.fleet_user_array = p2["fleet_user_array"]
+        self.wating_player.lengths = p2["lengths"]
+        self.wating_player.count_ships = p2["count_ships"]
+        self.wating_player.size = p2["size"]
+        self.wating_player.max_ships = p2["max_ships"]
+        self.wating_player.prefix = p2["prefix"]
+        self.wating_player.offset_x_user = p2["offset_x_user"]
+        self.wating_player.offset_y_user = p2["offset_y_user"]
+        self.wating_player.user_hit = p2["user_hit"]
+        self.wating_player.max_ships = p2["max_ships"]
+        self.wating_player.size = p2["size"]
+        self.size = p1["size"]
+        self.max_ships = p1["max_ships"]
+
+    def __init__(self, size, bot_lvl,game_mode, max_ships, rnd_ships, vk_post, vk_log, vk_passw, master=None):
         self.size = size
         self.bot_lvl = bot_lvl
         self.game_mode = game_mode
         self.max_ships = max_ships
-        self.count_shops = max_ships
-        self.rndFLeet = rndShips
+        self.count_ships = max_ships
+        self.rnd_fLeet = rnd_ships
         # размер одной из сторон квадратной ячейки
         self.gauge = 32 * 10/self.size
-        self.player1 = User.User(self.offset_x_user1, self.offset_y, "my", self.max_ships, self.size)
-        self.actual_player = self.player1
-        if self.game_mode == "OFF":
-            self.player2 = User.User(self.offset_x_user2, self.offset_y, "nmy", self.max_ships, self.size)
-        else:
-            self.player2 = Bot.Bot(self.max_ships, self.size, self.user2_shot, self.comp_hit, self.gauge, self.offset_x_user2, self.indent,
-                               self.offset_y, self.fleet_user, self.paintCross, self.checkFinish, self.paintMiss, self.bot_lvl)
+        self.vk_post=vk_post
+        self.vk_passw = vk_passw
+        self.vk_log = vk_log
         Frame.__init__(self, master)
         self.pack()
         # инициализация меню
@@ -489,6 +421,8 @@ class Application(Frame):
         self.createCanvas()
         self.m.add_command(label="Новая игра", command=self.new_game)
         self.m.add_command(label="Выход", command=self.quit_game)
+        self.m.add_command(label="Сохранить", command=self.save)
+        self.m.add_command(label="Загрузить", command=self.load)
 
         root.protocol("WM_DELETE_WINDOW", self.quit_game)
         root.mainloop()
@@ -498,9 +432,12 @@ if __name__ == '__main__':
     args = parse_arguments()
     size = 10
     AI_Lvl = 2
-    game_mode = "OFF"
+    game_mode = "ON"
     max_ships = 10
-    rnd_Ships = "OFF"
+    rnd_ships = "OFF"
+    vk_post = "OFF"
+    vk_log = ""
+    vk_passw = ""
     try:
         size = int(args.size_place)
         max_ships = args.count_ships
@@ -508,12 +445,16 @@ if __name__ == '__main__':
             max_ships = 10
         if size > 20 or size < 10:
             size = 10
-        if args.game_mode == "ON":
-            game_mode = "ON"
+        if args.game_mode == "OFF":
+            game_mode = "OFF"
         if args.LVL_AI == 1:
             AI_Lvl = 1
         if args.random_ships == "ON":
-            rnd_Ships = "ON"
+            rnd_ships = "ON"
+        if args.vk_post == "ON":
+            vk_post = "ON"
+        vk_log = args.vk_log
+        vk_passw = args.vk_pass
     except PermissionError:
         sys.exit(11)
 # инициализация окна
@@ -522,16 +463,5 @@ if __name__ == '__main__':
     root.geometry("800x400+100+100")
 
 # инициализация приложения
-    app = Application(size,AI_Lvl,game_mode, max_ships,rnd_Ships,  root)
+    app = Application(size,AI_Lvl,game_mode, max_ships, rnd_ships, vk_post, vk_log, vk_passw, root)
     app.mainloop()
-
-    def checkFinish(self, type):
-        '''type - указание, от чьего имени идёт обращение'''
-        status = 0
-        if type == "user":
-            for ship in self.fleet_user2:
-                status += ship.death
-        else:
-            for ship in self.fleet_user:
-                status += ship.death
-        return status

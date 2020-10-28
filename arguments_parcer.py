@@ -6,7 +6,6 @@ def parse_arguments():
 
     parser.add_argument('-s', type=int, dest='size_place', default=10,
                         help='Field size. Max 20x20')
-
     parser.add_argument('-AI', type=str, dest='game_mode',
                         default="ON",
                         help='PVP ON (OFF/ON)')
@@ -17,7 +16,12 @@ def parse_arguments():
                         help='Count ships 1-10. Max 10')
     parser.add_argument('-rndShips', type=str, dest='random_ships',
                         default="OFF",
-                        help='Generate randoms ships')
-
+                        help='Generate randoms ships, (OFF/ON), default OFF')
+    parser.add_argument('-VK', type=str, dest='vk_post', default="OFF",
+                        help='VK post result and INPUT LOGIN AND PASSWORD!, (OFF/ON), default OFF')
+    parser.add_argument('-VKLogin', type=str, dest='vk_log', default="",
+                        help='Input VK login')
+    parser.add_argument('-VKPassword', type=str, dest='vk_pass', default="",
+                        help='Input VK password')
 
     return parser.parse_args()

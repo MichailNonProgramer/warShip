@@ -1,35 +1,42 @@
+from time import sleep
+
 import Ship
 from random import randrange
-from time import sleep
 from tkinter import *
 from tkinter.messagebox import *
+from User import User
 
+class Bot(User):
+    fleet_user = []
+    comp_shoot = []
+    comp_hit = []
 
-class Bot:
+    def __init__(self, max_ships, size, gauge, offset_x_user, indent, offset_y_user, paintCross, checkFinish, paintMiss,
+                 bot_lvl, prefix, map_size, type, paintReadyShip, post_in_VK, vk_post, start_x, start_y):
 
-    def __init__(self, max_ships, size,comp_shoot,comp_hit, gauge, offset_x_user,indent, offset_y_user, fleet_user, paintCross, checkFinish, paintMiss, bot_lvl):
+        super().__init__(offset_x_user, offset_y_user, prefix, max_ships, map_size, type, paintReadyShip, start_x,
+                         start_y)
         self.max_ships = max_ships
         self.size = size
-        self.comp_shoot = comp_shoot
-        self.comp_hit = comp_hit
         self.gauge = gauge
-        self.offset_x = offset_x_user
+        self.offset_x_user = offset_x_user
         self.offset_y = offset_y_user
         self.indent = indent
-        self.fleet_user = fleet_user
         self.bot_lvl = bot_lvl
         self.paintCross = paintCross
         self.checkFinish = checkFinish
         self.paintMiss = paintMiss
         self.createnmyships()
+        self.prefix = "nmy"
+        self.post_in_VK = post_in_VK
+        self.vk_post = vk_post
 
-    def AiPlayHard(self):
-        if self.checkFinish("user") < self.max_ships and self.checkFinish("comp") < self.max_ships:
-            sleep(1)
+    def AiPlayHard(self, player):
+        if self.checkFinish("user1") < self.max_ships and self.checkFinish("bot") < self.max_ships:
             # если нет точек, в которые попал, но не убил то генерировать случайные точки
             if len(self.comp_hit) == 0:
                 # генерировать случайные точки, пока не будет найдена пара, которой не было в списке выстрелов
-                while 1:
+                while TRUE:
                     i = randrange(self.size)
                     j = randrange(self.size)
                     if not ("my_" + str(i) + "_" + str(j) in self.comp_shoot):
@@ -88,15 +95,16 @@ class Bot:
                 selected = points_to_strike[randrange(len(points_to_strike))]
                 i = int(selected.split('_')[1])
                 j = int(selected.split('_')[2])
-            xn = j * self.gauge + (j + 1) * self.indent + self.offset_x
+            xn = j * self.gauge + (j + 1) * self.indent + player.offset_x_user
             yn = i * self.gauge + (i + 1) * self.indent + self.offset_y
             hit_status = 0
-            for obj in self.fleet_user:
+            for obj in player.fleet_user:
                 # если координаты точки совпадают с координатой корабля, то вызвать метод выстрела
                 if "my_" + str(i) + "_" + str(j) in obj.coord_map:
                     hit_status = 2
                     # изменить статус попадания
                     self.comp_hit.append("my_" + str(i) + "_" + str(j))
+                    self.user_hit.append("my_" + str(i) + "_" + str(j))
                     # мы попали, поэтому надо нарисовать крест
                     self.paintCross(xn, yn, "my_" + str(i) + "_" + str(j))
                     # добавить точку в список выстрелов компьютера
@@ -109,12 +117,10 @@ class Bot:
                         for point in obj.around_map:
                             # нарисовать промахи
                             self.paintMiss(point)
+                            self.user_missing.append(point)
                             # добавить точки вокруг корабля в список выстрелов компьютера
                             self.comp_shoot.append(point)
-                        showinfo("", "Убил!")
                         self.comp_hit.clear()
-                    else:
-                        showinfo("", "Попал!")
                     break
             # если статус попадания остался равным нулю - значит, мы промахнулись, передать управление компьютеру
             # иначе дать пользователю стрелять
@@ -122,28 +128,30 @@ class Bot:
                 # добавить точку в список выстрелов
                 self.comp_shoot.append("my_" + str(i) + "_" + str(j))
                 self.paintMiss("my_" + str(i) + "_" + str(j))
-                showinfo("", "Ха, лох, не попал!")
+                self.user_missing.append("my_" + str(i) + "_" + str(j))
             else:
                 # проверить выигрыш, если его нет - передать управление компьютеру
-                if self.checkFinish("comp") < self.max_ships:
+                if self.checkFinish("user2") < self.max_ships:
 
                     if self.bot_lvl == 1:
-                        self.AiPlayEasy()
+                        self.AiPlayEasy(player)
                     else:
-                        self.AiPlayHard()
+                        self.AiPlayHard(player)
                 else:
                     showinfo("", "Как ты слил компу?!")
+                    if self.vk_post == "ON":
+                        self.post_in_VK(FALSE)
 
-    def AiPlayEasy(self):
-        while 1:
+    def AiPlayEasy(self, player):
+        while TRUE:
             i = randrange(self.size)
             j = randrange(self.size)
             if not ("my_" + str(i) + "_" + str(j) in self.comp_shoot):
                 break
-        xn = j * self.gauge + (j + 1) * self.indent + self.offset_x
+        xn = j * self.gauge + (j + 1) * self.indent + player.offset_x_user
         yn = i * self.gauge + (i + 1) * self.indent + self.offset_y
         hit_status = 0
-        for obj in self.fleet_user:
+        for obj in player.fleet_user:
             # если координаты точки совпадают с координатой корабля, то вызвать метод выстрела
             if "my_" + str(i) + "_" + str(j) in obj.coord_map:
                 hit_status = 2
@@ -151,6 +159,7 @@ class Bot:
                 self.comp_hit.append("my_" + str(i) + "_" + str(j))
                 # мы попали, поэтому надо нарисовать крест
                 self.paintCross(xn, yn, "my_" + str(i) + "_" + str(j))
+                self.user_hit.append("my_" + str(i) + "_" + str(j))
                 # добавить точку в список выстрелов компьютера
                 self.comp_shoot.append("my_" + str(i) + "_" + str(j))
                 # если метод вернул двойку, значит, корабль убит
@@ -161,12 +170,10 @@ class Bot:
                     for point in obj.around_map:
                         # нарисовать промахи
                         self.paintMiss(point)
+                        self.user_missing(point)
                         # добавить точки вокруг корабля в список выстрелов компьютера
                         self.comp_shoot.append(point)
-                    showinfo("", "Убил!")
                     self.comp_hit.clear()
-                else:
-                    showinfo("", "Попал!")
                 break
         # если статус попадания остался равным нулю - значит, мы промахнулись, передать управление компьютеру
         # иначе дать пользователю стрелять
@@ -174,16 +181,18 @@ class Bot:
             # добавить точку в список выстрелов
             self.comp_shoot.append("my_" + str(i) + "_" + str(j))
             self.paintMiss("my_" + str(i) + "_" + str(j))
-            showinfo("", "Ха, лох, не попал!")
+            self.user_missing.append("my_" + str(i) + "_" + str(j))
         else:
             # проверить выигрыш, если его нет - передать управление компьютеру
-            if self.checkFinish("comp") < self.max_ships:
+            if self.checkFinish("user2") < self.max_ships:
                 if self.bot_lvl == 1:
-                    self.AiPlayEasy()
+                    self.AiPlayEasy(player)
                 else:
-                    self.AiPlayHard()
+                    self.AiPlayHard(player)
             else:
                 showinfo("", "Как ты слил компу?!")
+                if self.vk_post == "ON":
+                    self.post_in_VK(FALSE)
 
     def createnmyships(self, prefix="nmy"):
         # функция генерации кораблей на поле
@@ -202,7 +211,7 @@ class Bot:
                 # генерация необходимого количества кораблей необходимой длины
                 for i in range(5 - length):
                     # генерация точки со случайными координатами, пока туда не установится корабль
-                    while 1:
+                    while TRUE:
                         # генерация точки со случайными координатами
                         ship_point = prefix + "_" + str(randrange(self.size)) + "_" + str(randrange(self.size))
                         # случайное расположение корабля (либо горизонтальное, либо вертикальное)
@@ -218,5 +227,4 @@ class Bot:
                             fleet_ships.append(new_ship)
                             count_ships += 1
                             break
-        self.fleet_comp = fleet_ships
-        return self.fleet_comp
+        self.fleet_user = fleet_ships
