@@ -144,18 +144,10 @@ class Application(Frame):
                 self.canv.create_rectangle(xn, yn, xk, yk,
                                            tag=str(self.actual_player.prefix) + "_" + str(i) + "_" + str(j), fill="white")
                 point = str(self.actual_player.prefix) + "_" + str(i) + "_" + str(j)
-                print(point)
-                print(self.wating_player.user_missing)
-                print(self.wating_player.user_hit)
                 if point in self.wating_player.user_hit:
                     self.paintCross(xn, yn, self.actual_player.prefix)
                 if point in self.wating_player.user_missing:
                     self.paintMiss(point)
-                for ship in self.actual_player.fleet_user:
-                    for coord in ship.coord_map:
-                        if point == coord:
-                            self.paintReadyShip(ship, "blue")
-
 
     def updateMapWating(self):
         for i in range(self.size):
@@ -165,7 +157,7 @@ class Application(Frame):
                 yn = i * self.gauge + (i + 1) * self.indent + self.offset_y
                 yk = yn + self.gauge
                 self.canv.create_rectangle(xn, yn, xk, yk,
-                                           tag=str(self.wating_player.prefix) + "_" + str(i) + "_" + str(j), fill="gray")
+                                           tag=str(self.wating_player.prefix) + "_" + str(i) + "_" + str(j), fill="white")
                 point = str(self.wating_player.prefix) + "_" + str(i) + "_" + str(j)
                 if point in self.actual_player.user_hit:
                     self.paintCross(xn, yn, self.wating_player.prefix)
