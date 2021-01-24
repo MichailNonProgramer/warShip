@@ -7,15 +7,15 @@ from tkinter.messagebox import *
 from User import User
 
 class Bot(User):
-    fleet_user = []
-    comp_shoot = []
-    comp_hit = []
 
     def __init__(self, max_ships, size, gauge, offset_x_user, indent, offset_y_user, paintCross, checkFinish, paintMiss,
                  bot_lvl, prefix, map_size, type, paintReadyShip, post_in_VK, vk_post, start_x, start_y):
 
         super().__init__(offset_x_user, offset_y_user, prefix, max_ships, map_size, type, paintReadyShip, start_x,
                          start_y)
+        self.fleet_user = []
+        self.comp_shoot = []
+        self.comp_hit = []
         self.max_ships = max_ships
         self.size = size
         self.gauge = gauge
